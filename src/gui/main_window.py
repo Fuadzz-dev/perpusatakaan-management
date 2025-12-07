@@ -171,7 +171,7 @@ Transaksi Pending: {stats['pending_transactions']}
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
         # Treeview
-        columns = ( "Title", "Author", "Genre", "Year", "Stock")
+        columns = ("ID", "Title", "Author", "Genre", "Year", "Stock")
         tree = ttk.Treeview(tree_frame, columns=columns, show='headings', yscrollcommand=scrollbar.set)
         
         for col in columns:
@@ -180,6 +180,8 @@ Transaksi Pending: {stats['pending_transactions']}
         
         tree.column("Title", width=250)
         tree.column("Author", width=150)
+        tree.column("ID", width=0, stretch=False)
+        tree.heading("ID", text="", anchor=tk.W)       
         
         scrollbar.config(command=tree.yview)
         tree.pack(fill=tk.BOTH, expand=True)
@@ -188,6 +190,7 @@ Transaksi Pending: {stats['pending_transactions']}
         books = self.library.get_all_books()
         for book in books:
             tree.insert('', tk.END, values=(
+                book.books_id,
                 book.title,
                 book.author,
                 book.genre,
@@ -259,6 +262,7 @@ Transaksi Pending: {stats['pending_transactions']}
             if results:
                 results_text.insert(tk.END, f"Ditemukan {len(results)} buku:\n\n")
                 for book in results:
+                    info = f"ID: {book.books_id}\n"
                     info += f"Judul: {book.title}\n"
                     info += f"Penulis: {book.author}\n"
                     info += f"Genre: {book.genre}\n"
