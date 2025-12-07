@@ -4,6 +4,8 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from gui.register_window import RegisterWindow
+
 class LoginWindow:
     """Login window untuk autentikasi user"""
     
@@ -13,7 +15,7 @@ class LoginWindow:
         
         self.root = tk.Tk()
         self.root.title("Login Sistem Perpustakaan")
-        self.root.geometry("400x500")
+        self.root.geometry("450x700")
         self.root.resizable(False, False)
         
         # Center window
@@ -33,177 +35,167 @@ class LoginWindow:
     def create_widgets(self):
         """Buat komponen UI"""
         # Main frame
-        main_frame = ttk.Frame(self.root, padding="20")
+        main_frame = ttk.Frame(self.root, padding="30")
         main_frame.pack(fill=tk.BOTH, expand=True)
         
-        # Title
-        title_label = ttk.Label(
-            main_frame,
-            text="SISTEM PERPUSTAKAAN",
-            font=("Arial", 20, "bold")
-        )
-        title_label.pack(pady=(0, 10))
+        # Header with icon
+        header_frame = ttk.Frame(main_frame)
+        header_frame.pack(fill=tk.X, pady=(0, 10))
         
-        subtitle_label = ttk.Label(
-            main_frame,
+        ttk.Label(
+            header_frame,
+            text="📚",
+            font=("Arial", 40)
+        ).pack()
+        
+        ttk.Label(
+            header_frame,
+            text="SISTEM PERPUSTAKAAN",
+            font=("Arial", 20, "bold"),
+            foreground="#2c3e50"
+        ).pack(pady=(5, 0))
+        
+        ttk.Label(
+            header_frame,
             text="Library Management System",
-            font=("Arial", 10)
-        )
-        subtitle_label.pack(pady=(0, 30))
+            font=("Arial", 10),
+            foreground="#7f8c8d"
+        ).pack()
         
         # Login form frame
         form_frame = ttk.LabelFrame(main_frame, text="Login", padding="20")
-        form_frame.pack(fill=tk.BOTH, expand=True, pady=10)
+        form_frame.pack(fill=tk.BOTH, expand=True, pady=15)
         
         # Username
-        ttk.Label(form_frame, text="Username:", font=("Arial", 10)).pack(anchor=tk.W, pady=(0, 5))
-        self.username_entry = ttk.Entry(form_frame, font=("Arial", 11), width=30)
+        ttk.Label(
+            form_frame,
+            text="Username:",
+            font=("Arial", 10, "bold")
+        ).pack(anchor=tk.W, pady=(0, 5))
+        
+        self.username_entry = ttk.Entry(form_frame, font=("Arial", 11), width=35)
         self.username_entry.pack(fill=tk.X, pady=(0, 15))
+        self.username_entry.focus()
         
         # Password
-        ttk.Label(form_frame, text="Password:", font=("Arial", 10)).pack(anchor=tk.W, pady=(0, 5))
-        self.password_entry = ttk.Entry(form_frame, font=("Arial", 11), show="*", width=30)
-        self.password_entry.pack(fill=tk.X, pady=(0, 20))
+        ttk.Label(
+            form_frame,
+            text="Password:",
+            font=("Arial", 10, "bold")
+        ).pack(anchor=tk.W, pady=(0, 5))
+        
+        password_frame = ttk.Frame(form_frame)
+        password_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        self.password_entry = ttk.Entry(
+            password_frame,
+            font=("Arial", 11),
+            show="●",
+            width=15
+        )
+        self.password_entry.pack(fill=tk.X, pady=(0, 5))
+        
+        # Show password checkbox
+        self.show_password_var = tk.BooleanVar()
+        ttk.Checkbutton(
+            password_frame,
+            text="Tampilkan password",
+            variable=self.show_password_var,
+            command=self.toggle_password
+        ).pack(anchor=tk.W)
         
         # Login button
-        login_btn = ttk.Button(
+        self.login_btn = ttk.Button(
             form_frame,
-            text="Login",
+            text="🔐 Login",
             command=self.handle_login,
-            width=20
+            width=25
         )
-        login_btn.pack(pady=10)
+        self.login_btn.pack(pady=15)
         
-        # Register frame
-        register_frame = ttk.LabelFrame(main_frame, text="Belum punya akun?", padding="20")
-        register_frame.pack(fill=tk.BOTH, pady=10)
-        
-        ttk.Label(
-            register_frame,
-            text="Daftar sebagai member baru",
-            font=("Arial", 9)
-        ).pack(pady=(0, 10))
-        
-        register_btn = ttk.Button(
-            register_frame,
-            text="Register",
-            command=self.show_register_form,
-            width=20
-        )
-        register_btn.pack()
-        
-        # Info
-        info_label = ttk.Label(
+        # Register section
+        register_frame = ttk.LabelFrame(
             main_frame,
-            text="Default Admin: admin / admin123\nDefault User: user / user123",
-            font=("Arial", 8),
-            foreground="gray"
+            text="Belum punya akun?",
+            padding="20"
         )
-        info_label.pack(side=tk.BOTTOM, pady=10)
+        register_frame.pack(fill=tk.X, pady=10)
+        
+        self.register_btn = ttk.Button(
+            register_frame,
+            text="📝 Daftar Sekarang",
+            command=self.show_register_form,
+            width=30
+        )
+        self.register_btn.pack(pady=8)
+
+
+        
+        # Info credentials
+        info_frame = ttk.Frame(main_frame)
+        info_frame.pack(side=tk.BOTTOM)
+        
+        # ttk.Label(
+        #     info_frame,
+        #     text="Akun Demo:",
+        #     font=("Arial", 8, "bold"),
+        #     foreground="gray"
+        # ).pack()
+        
+        # ttk.Label(
+        #     info_frame,
+        #     text="Admin: admin / admin123\nMember: user / user123",
+        #     font=("Arial", 8),
+        #     foreground="gray",
+        #     justify=tk.CENTER
+        # ).pack()
         
         # Bind Enter key
         self.root.bind('<Return>', lambda e: self.handle_login())
     
+    def toggle_password(self):
+        """Toggle show/hide password"""
+        if self.show_password_var.get():
+            self.password_entry.config(show="")
+        else:
+            self.password_entry.config(show="●")
+    
     def handle_login(self):
         """Handle login action"""
         username = self.username_entry.get().strip()
-        password = self.password_entry.get().strip()
+        password = self.password_entry.get()
         
         if not username or not password:
             messagebox.showerror("Error", "Username dan password harus diisi!")
             return
         
-        success, message = self.library.login(username, password)
+        # Disable button saat proses
+        self.login_btn.config(state='disabled', text="Memproses...")
+        self.root.update()
         
-        if success:
-            messagebox.showinfo("Success", message)
-            self.root.destroy()
-            self.on_login_success()
-        else:
-            messagebox.showerror("Login Gagal", message)
-            self.password_entry.delete(0, tk.END)
+        try:
+            success, message = self.library.login(username, password)
+            
+            if success:
+                messagebox.showinfo("Login Berhasil", f"Selamat datang!\n\n{message}")
+                self.root.destroy()
+                self.on_login_success()
+            else:
+                messagebox.showerror("Login Gagal", message)
+                self.password_entry.delete(0, tk.END)
+                self.login_btn.config(state='normal', text="🔐 Login")
+                self.password_entry.focus()
+        
+        except Exception as e:
+            messagebox.showerror("Error", f"Terjadi kesalahan:\n{str(e)}")
+            self.login_btn.config(state='normal', text="🔐 Login")
     
     def show_register_form(self):
         """Tampilkan form register"""
-        register_window = tk.Toplevel(self.root)
-        register_window.title("Register - Member Baru")
-        register_window.geometry("400x350")
-        register_window.resizable(False, False)
-        
-        # Center window
-        register_window.update_idletasks()
-        width = register_window.winfo_width()
-        height = register_window.winfo_height()
-        x = (register_window.winfo_screenwidth() // 2) - (width // 2)
-        y = (register_window.winfo_screenheight() // 2) - (height // 2)
-        register_window.geometry(f'{width}x{height}+{x}+{y}')
-        
-        # Main frame
-        frame = ttk.Frame(register_window, padding="20")
-        frame.pack(fill=tk.BOTH, expand=True)
-        
-        # Title
-        ttk.Label(
-            frame,
-            text="Registrasi Member Baru",
-            font=("Arial", 14, "bold")
-        ).pack(pady=(0, 20))
-        
-        # Username
-        ttk.Label(frame, text="Username:", font=("Arial", 10)).pack(anchor=tk.W, pady=(0, 5))
-        username_entry = ttk.Entry(frame, font=("Arial", 11), width=30)
-        username_entry.pack(fill=tk.X, pady=(0, 15))
-        
-        # Password
-        ttk.Label(frame, text="Password:", font=("Arial", 10)).pack(anchor=tk.W, pady=(0, 5))
-        password_entry = ttk.Entry(frame, font=("Arial", 11), show="*", width=30)
-        password_entry.pack(fill=tk.X, pady=(0, 15))
-        
-        # Confirm Password
-        ttk.Label(frame, text="Konfirmasi Password:", font=("Arial", 10)).pack(anchor=tk.W, pady=(0, 5))
-        confirm_entry = ttk.Entry(frame, font=("Arial", 11), show="*", width=30)
-        confirm_entry.pack(fill=tk.X, pady=(0, 20))
-        
-        def handle_register():
-            username = username_entry.get().strip()
-            password = password_entry.get().strip()
-            confirm = confirm_entry.get().strip()
-            
-            if not username or not password or not confirm:
-                messagebox.showerror("Error", "Semua field harus diisi!")
-                return
-            
-            if password != confirm:
-                messagebox.showerror("Error", "Password tidak cocok!")
-                return
-            
-            if len(password) < 6:
-                messagebox.showerror("Error", "Password minimal 6 karakter!")
-                return
-            
-            success, message = self.library.register_user(username, password, 'member')
-            
-            if success:
-                messagebox.showinfo("Success", "Registrasi berhasil! Silakan login.")
-                register_window.destroy()
-            else:
-                messagebox.showerror("Error", message)
-        
-        # Register button
-        ttk.Button(
-            frame,
-            text="Daftar",
-            command=handle_register,
-            width=20
-        ).pack(pady=10)
-        
-        # Cancel button
-        ttk.Button(
-            frame,
-            text="Batal",
-            command=register_window.destroy,
-            width=20
-        ).pack()
+        try:
+            RegisterWindow(self.library, self.root)
+        except Exception as e:
+            messagebox.showerror("Error", f"Gagal membuka form registrasi:\n{str(e)}")
     
     def run(self):
         """Jalankan window"""
