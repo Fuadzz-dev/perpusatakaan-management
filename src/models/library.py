@@ -9,7 +9,7 @@ from models.book import Book
 from models.user import User
 from models.transaction import Transaction, BorrowHistory
 from utils.encryption import PasswordEncryption
-from utils.database_connector import DatabaseConnector # Tambahkan ini
+from utils.database_connector import DatabaseConnector
 from datetime import datetime
 
 class Library:
@@ -17,19 +17,20 @@ class Library:
     
     def __init__(self):
         # Data structures
-        self.transaction_queue = Queue()  # Queue untuk antrian transaksi
-        self.history_stack = Stack()  # Stack untuk undo operations
-        self.recommendation_graph = Graph()  # Graph untuk sistem rekomendasi
+        self.transaction_queue = Queue()
+        self.history_stack = Stack()
+        self.recommendation_graph = Graph()
         
         # Database Connector
         self.db = DatabaseConnector(
             host="localhost",
             user="root",
             password="",
-            database="perpustakaan_db" # Pastikan nama database benar# Pastikan nama database benar
+            database="perpustakaan_db" # ✅ FIXED: Menggunakan nama database yang konsisten
         )
         if not self.db.connect():
-            raise ConnectionError("Gagal terhubung ke database. Pastikan XAMPP MySQL berjalan dan database  ada.")
+            raise ConnectionError("Gagal terhubung ke database. Pastikan XAMPP MySQL berjalan dan database ada.")
+        
         # Current user
         self.current_user = None
         
@@ -40,15 +41,12 @@ class Library:
     
     def register_user(self, username, password, role='member'):
         """Register user baru"""
-        # Cek apakah username sudah ada di DB
         query_check = "SELECT user_id FROM users WHERE username = %s"
         if self.db.execute_query(query_check, (username,), fetch='one'):
             return False, "Username sudah digunakan"
         
-        # Encrypt password
         password_entry = PasswordEncryption.create_password_entry(password)
         
-        # Insert ke DB
         query_insert = "INSERT INTO users (username, password_hash, role) VALUES (%s, %s, %s)"
         user_id = self.db.execute_query(query_insert, (username, password_entry, role))
         
@@ -100,7 +98,6 @@ class Library:
         if not self.get_book(book_id):
             return False, "Buku tidak ditemukan"
         
-        # Buat query UPDATE dinamis
         fields = []
         params = []
         for key, value in kwargs.items():
@@ -129,7 +126,7 @@ class Library:
         return True, "Buku berhasil dihapus"
     
     def search_books(self, query):
-        """Pencarian multi-kriteria menggunakan BST traversal dan hashing"""
+        """Pencarian multi-kriteria"""
         results = []
         sql_query = """
             SELECT * FROM books 
@@ -146,7 +143,7 @@ class Library:
             book_id = int(query)
             book = self.get_book(book_id)
             if book and book not in results:
-                 results.append(book)
+                results.append(book)
         except ValueError:
             pass
         return results
@@ -175,15 +172,14 @@ class Library:
         if not book.is_available():
             return False, "Buku tidak tersedia"
         
-        # Buat transaksi dan masukkan ke queue
         query = "INSERT INTO transactions (user_id, book_id, type, status) VALUES (%s, %s, %s, %s)"
-        params = (self.current_user.user_id, book_id, 'return', 'pending')
+        params = (self.current_user.user_id, book_id, 'borrow', 'pending')  # ✅ FIXED: Tipe transaksi harus 'borrow'
         trans_id = self.db.execute_query(query, params)
         
         if not trans_id:
             return False, "Gagal mengajukan permintaan"
 
-        transaction = Transaction(trans_id, self.current_user.user_id, book_id, 'return')
+        transaction = Transaction(trans_id, self.current_user.user_id, book_id, 'borrow')  # ✅ FIXED: Tipe transaksi harus 'borrow'
         self.transaction_queue.enqueue(transaction)
         return True, "Permintaan peminjaman berhasil diajukan"
     
@@ -191,21 +187,24 @@ class Library:
         """Request pengembalian buku"""
         if not self.current_user:
             return False, "Anda harus login terlebih dahulu"
-        # Cek apakah user memang meminjam buku ini
-        # (Implementasi ini bisa ditambahkan untuk validasi lebih lanjut)
-        history_data = self.db.execute_query(
-            "SELECT * FROM borrow_history WHERE user_id = %s AND book_id = %s AND return_date IS NULL",
+        
+        history_data = self.db.execute_query( # Menggunakan tabel 'history'
+            "SELECT * FROM history WHERE user_id = %s AND book_id = %s AND return_date IS NULL",
             (self.current_user.user_id, book_id),
             fetch='one'
-        )        
-        # Buat transaksi dan masukkan ke queue
-        transaction = Transaction(
-            self.next_transaction_id,
-            self.current_user.user_id,
-            book_id,
-            'return'
         )
         
+        if not history_data:
+            return False, "Anda tidak sedang meminjam buku ini"
+        
+        query = "INSERT INTO transactions (user_id, book_id, type, status) VALUES (%s, %s, %s, %s)"
+        params = (self.current_user.user_id, book_id, 'return', 'pending')
+        trans_id = self.db.execute_query(query, params)
+        
+        if not trans_id:
+            return False, "Gagal mengajukan permintaan"
+        
+        transaction = Transaction(trans_id, self.current_user.user_id, book_id, 'return')
         self.transaction_queue.enqueue(transaction)
         return True, "Permintaan pengembalian berhasil diajukan"
     
@@ -227,24 +226,16 @@ class Library:
         if transaction.is_borrow():
             if book.borrow():
                 transaction.approve()
-                # Buat history
-                history = BorrowHistory(
-                    self.next_history_id,
-                    transaction.user_id,
-                    transaction.book_id
-                )
-                self.next_history_id += 1
                 
                 # Update di DB
                 self.db.execute_query("UPDATE books SET stock = stock - 1 WHERE books_id = %s", (book.books_id,))
                 self.db.execute_query("UPDATE transactions SET status = 'approved' WHERE transaction_id = %s", (transaction.transaction_id,))
-                self.db.execute_query("INSERT INTO borrow_history (user_id, book_id) VALUES (%s, %s)", (transaction.user_id, transaction.book_id))
+                self.db.execute_query("INSERT INTO history (user_id, book_id) VALUES (%s, %s)", (transaction.user_id, transaction.book_id)) # Menggunakan tabel 'history'
 
                 # Save to stack for undo
                 self.history_stack.push({
                     'action': 'borrow',
-                    'transaction': transaction,
-                    'history': history
+                    'transaction': transaction
                 })
                 
                 # Update recommendation graph
@@ -258,10 +249,12 @@ class Library:
         elif transaction.is_return():
             book.return_book()
             transaction.approve()
+            
             # Update di DB
             self.db.execute_query("UPDATE books SET stock = stock + 1 WHERE books_id = %s", (book.books_id,))
             self.db.execute_query("UPDATE transactions SET status = 'approved' WHERE transaction_id = %s", (transaction.transaction_id,))
-            self.db.execute_query("UPDATE borrow_history SET return_date = %s WHERE user_id = %s AND book_id = %s AND return_date IS NULL", (datetime.now(), transaction.user_id, transaction.book_id))
+            self.db.execute_query("UPDATE history SET return_date = %s WHERE user_id = %s AND book_id = %s AND return_date IS NULL", (datetime.now(), transaction.user_id, transaction.book_id)) # Menggunakan tabel 'history'
+            
             self.history_stack.push({
                 'action': 'return',
                 'transaction': transaction
@@ -275,17 +268,32 @@ class Library:
         return self.transaction_queue.get_all()
     
     def get_user_history(self, user_id=None):
-        """Dapatkan history peminjaman user"""
+        """Dapatkan history peminjaman user - FIXED"""
         if user_id is None and self.current_user:
             user_id = self.current_user.user_id
         
         query = """
-            SELECT t.*, b.title as book_title FROM transactions t
+            SELECT t.*, b.title as book_title 
+            FROM transactions t
             LEFT JOIN books b ON t.book_id = b.books_id
-            WHERE t.user_id = %s ORDER BY t.timestamp DESC
+            WHERE t.user_id = %s 
+            ORDER BY t.timestamp DESC
         """
         trans_data = self.db.execute_query(query, (user_id,), fetch='all')
-        return trans_data if trans_data else []
+        
+        if not trans_data:
+            return []
+        
+        # ✅ FIXED: Konversi ke format yang benar
+        result = []
+        for t_dict in trans_data:
+            transaction = Transaction.from_dict(t_dict)
+            result.append({
+                'transaction': transaction,
+                'book_title': t_dict.get('book_title', 'Unknown')
+            })
+        
+        return result
     
     # ==================== RECOMMENDATION SYSTEM ====================
     
@@ -297,7 +305,6 @@ class Library:
         self.recommendation_graph.add_vertex(user_vertex)
         self.recommendation_graph.add_edge(user_vertex, book_vertex, weight=1.0)
         
-        # Build similarity dengan user lain
         all_users = self.db.execute_query("SELECT user_id FROM users", fetch='all')
         for user in all_users:
             if user['user_id'] != user_id:
@@ -305,7 +312,6 @@ class Library:
                 other_books = self.recommendation_graph.get_neighbors(other_vertex)
                 
                 if book_vertex in other_books:
-                    # Kedua user pernah pinjam buku yang sama
                     similarity = self.recommendation_graph.get_weight(user_vertex, other_vertex) + 0.2
                     self.recommendation_graph.add_undirected_edge(
                         user_vertex, other_vertex, weight=similarity
@@ -317,8 +323,6 @@ class Library:
             return []
         
         user_vertex = f"user_{self.current_user.user_id}"
-        
-        # Get books borrowed by similar users (collaborative filtering)
         similar_users = self.recommendation_graph.get_neighbors(user_vertex)
         user_books = self.recommendation_graph.get_neighbors(user_vertex)
         
@@ -336,10 +340,8 @@ class Library:
                             recommendations[book_id] = 0
                         recommendations[book_id] += weight
         
-        # Sort by score
         sorted_recs = sorted(recommendations.items(), key=lambda x: x[1], reverse=True)
         
-        # Get book objects
         result = []
         for book_id, score in sorted_recs[:top_n]:
             book = self.get_book(book_id)
@@ -351,24 +353,38 @@ class Library:
     # ==================== ANALYTICS ====================
     
     def get_statistics(self):
-        """Dapatkan statistik perpustakaan"""
-        total_books = self.db.execute_query("SELECT COUNT(*) as c FROM books", fetch='one')['c']
-        total_users = self.db.execute_query("SELECT COUNT(*) as c FROM users", fetch='one')['c']
+        """Dapatkan statistik perpustakaan - FIXED"""
+        total_books_result = self.db.execute_query("SELECT COUNT(*) as c FROM books", fetch='one')
+        total_books = total_books_result['c'] if total_books_result else 0
+        
+        total_users_result = self.db.execute_query("SELECT COUNT(*) as c FROM users", fetch='one')
+        total_users = total_users_result['c'] if total_users_result else 0
+        
         pending_transactions = self.transaction_queue.get_size()
         
-        available_books = self.db.execute_query("SELECT SUM(stock) as s FROM books", fetch='one')['s'] or 0
+        available_books_result = self.db.execute_query("SELECT SUM(stock) as s FROM books", fetch='one')
+        available_books = available_books_result['s'] if available_books_result and available_books_result['s'] else 0
+        
+        # ✅ FIXED: Hitung borrowed books dengan benar
+        borrowed_books_result = self.db.execute_query(
+            "SELECT COUNT(*) as c FROM history WHERE return_date IS NULL", # Menggunakan tabel 'history'
+            fetch='one'
+        )
+        borrowed_books = borrowed_books_result['c'] if borrowed_books_result else 0
         
         # Genre statistics
         genre_count = {}
         genre_data = self.db.execute_query("SELECT genre, COUNT(*) as count FROM books GROUP BY genre", fetch='all')
-        for item in genre_data:
-            genre = item['genre'] or "Unknown"
-            genre_count[genre] = genre_count.get(genre, 0) + 1
+        if genre_data:
+            for item in genre_data:
+                genre = item['genre'] or "Unknown"
+                genre_count[genre] = item['count']
         
+        # ✅ FIXED: Return data yang benar
         return {
             'total_books': total_books,
             'available_books': available_books,
-            'history': BorrowHistory,
+            'borrowed_books': borrowed_books,  # ✅ FIXED
             'total_users': total_users,
             'pending_transactions': pending_transactions,
             'genre_distribution': genre_count
@@ -376,10 +392,9 @@ class Library:
     
     def get_popular_books(self, top_n=10):
         """Dapatkan buku paling populer"""
-        borrow_count = {}
         query = """
-            SELECT b.title, b.author, b.books_id, COUNT(bh.book_id) as borrow_count
-            FROM borrow_history bh
+            SELECT b.*, COUNT(bh.book_id) as borrow_count
+            FROM history bh
             JOIN books b ON bh.book_id = b.books_id
             GROUP BY bh.book_id
             ORDER BY borrow_count DESC
@@ -398,10 +413,9 @@ class Library:
     # ==================== DATA PERSISTENCE ====================
     
     def initialize_data(self):
-        """Inisialisasi data dari database saat startup."""
+        """Inisialisasi data dari database saat startup"""
         print("Menginisialisasi data dari database...")
         
-        # Load pending transactions to queue
         trans_data = self.db.execute_query("SELECT * FROM transactions WHERE status = 'pending'", fetch='all')
         if trans_data:
             print(f"Memuat {len(trans_data)} transaksi yang tertunda...")
@@ -409,8 +423,9 @@ class Library:
                 transaction = Transaction.from_dict(t_dict)
                 self.transaction_queue.enqueue(transaction)
         
-        # Create default admin if no users
-        user_count = self.db.execute_query("SELECT COUNT(*) as c FROM users", fetch='one')['c']
+        user_count_result = self.db.execute_query("SELECT COUNT(*) as c FROM users", fetch='one')
+        user_count = user_count_result['c'] if user_count_result else 0
+        
         if user_count == 0:
             print("Database pengguna kosong. Membuat pengguna default...")
             self.register_user('admin', 'admin123', 'admin')
