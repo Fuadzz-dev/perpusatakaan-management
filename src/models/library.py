@@ -26,11 +26,10 @@ class Library:
             host="localhost",
             user="root",
             password="",
-            database="perpustakaan_db" # Pastikan nama database benar
+            database="perpustakaan_db" # Pastikan nama database benar# Pastikan nama database benar
         )
         if not self.db.connect():
             raise ConnectionError("Gagal terhubung ke database. Pastikan XAMPP MySQL berjalan dan database  ada.")
-        
         # Current user
         self.current_user = None
         
@@ -178,13 +177,13 @@ class Library:
         
         # Buat transaksi dan masukkan ke queue
         query = "INSERT INTO transactions (user_id, book_id, type, status) VALUES (%s, %s, %s, %s)"
-        params = (self.current_user.user_id, book_id, 'borrow', 'pending')
+        params = (self.current_user.user_id, book_id, 'return', 'pending')
         trans_id = self.db.execute_query(query, params)
         
         if not trans_id:
             return False, "Gagal mengajukan permintaan"
 
-        transaction = Transaction(trans_id, self.current_user.user_id, book_id, 'borrow')
+        transaction = Transaction(trans_id, self.current_user.user_id, book_id, 'return')
         self.transaction_queue.enqueue(transaction)
         return True, "Permintaan peminjaman berhasil diajukan"
     
@@ -194,18 +193,21 @@ class Library:
             return False, "Anda harus login terlebih dahulu"
         # Cek apakah user memang meminjam buku ini
         # (Implementasi ini bisa ditambahkan untuk validasi lebih lanjut)
-        
+        history_data = self.db.execute_query(
+            "SELECT * FROM borrow_history WHERE user_id = %s AND book_id = %s AND return_date IS NULL",
+            (self.current_user.user_id, book_id),
+            fetch='one'
+        )        
         # Buat transaksi dan masukkan ke queue
-        query = "INSERT INTO transactions (user_id, book_id, type, status) VALUES (%s, %s, %s, %s)"
-        params = (self.current_user.user_id, book_id, 'return', 'pending')
-        trans_id = self.db.execute_query(query, params)
+        transaction = Transaction(
+            self.next_transaction_id,
+            self.current_user.user_id,
+            book_id,
+            'return'
+        )
         
-        if not trans_id:
-            return False, "Gagal mengajukan permintaan pengembalian."
-
-        transaction = Transaction(trans_id, self.current_user.user_id, book_id, 'return')
         self.transaction_queue.enqueue(transaction)
-        return True, "Permintaan pengembalian berhasil diajukan."
+        return True, "Permintaan pengembalian berhasil diajukan"
     
     def process_transaction(self):
         """Process transaksi dari queue (admin only)"""
@@ -225,11 +227,18 @@ class Library:
         if transaction.is_borrow():
             if book.borrow():
                 transaction.approve()
+                # Buat history
+                history = BorrowHistory(
+                    self.next_history_id,
+                    transaction.user_id,
+                    transaction.book_id
+                )
+                self.next_history_id += 1
+                
                 # Update di DB
                 self.db.execute_query("UPDATE books SET stock = stock - 1 WHERE books_id = %s", (book.books_id,))
                 self.db.execute_query("UPDATE transactions SET status = 'approved' WHERE transaction_id = %s", (transaction.transaction_id,))
-                history_id = self.db.execute_query("INSERT INTO borrow_history (user_id, book_id) VALUES (%s, %s)", (transaction.user_id, transaction.book_id))
-                history = BorrowHistory(history_id, transaction.user_id, transaction.book_id)
+                self.db.execute_query("INSERT INTO borrow_history (user_id, book_id) VALUES (%s, %s)", (transaction.user_id, transaction.book_id))
 
                 # Save to stack for undo
                 self.history_stack.push({
@@ -359,6 +368,7 @@ class Library:
         return {
             'total_books': total_books,
             'available_books': available_books,
+            'history': BorrowHistory,
             'total_users': total_users,
             'pending_transactions': pending_transactions,
             'genre_distribution': genre_count
