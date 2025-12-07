@@ -8,5 +8,15 @@
     "year": 2025,
     "stock": 0,
     "description": ""
+  },
+  {
+    "books_id": 2,
+    "isbn": "213124",
+    "title": "asldnaljfn",
+    "author": "ajsfndajs",
+    "genre": "ajsfnlaj",
+    "year": 2023,
+    "stock": 112,
+    "description": ""
   }
 ]

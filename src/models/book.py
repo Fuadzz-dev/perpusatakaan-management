@@ -2,7 +2,7 @@ class Book:
     """Model untuk buku"""
     
     def __init__(self, books_id, title, author="", isbn="", genre="", 
-                 year=None, stock=1, description=""):
+                year=None, stock=1, description=""):
         self.books_id = books_id
         self.isbn = isbn
         self.title = title
@@ -29,7 +29,7 @@ class Book:
     def from_dict(data):
         """Create Book dari dictionary"""
         return Book(
-            books_id=data.get('books_id'),
+            books_id=data.get('books_id') or data.get('id'), # Akomodasi nama kolom
             title=data.get('title', ''),
             author=data.get('author', ''),
             isbn=data.get('isbn', ''),
@@ -67,3 +67,6 @@ class Book:
     
     def __repr__(self):
         return f"Book(id={self.books_id}, title='{self.title}')"
+
+    def __eq__(self, other):
+        return isinstance(other, Book) and self.books_id == other.books_id
