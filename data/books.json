@@ -1,0 +1,12 @@
+[
+  {
+    "books_id": 1,
+    "isbn": "1234",
+    "title": "Struktur data",
+    "author": "Fahri",
+    "genre": "apa aja",
+    "year": 2025,
+    "stock": 1,
+    "description": ""
+  }
+]

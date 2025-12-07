@@ -1,0 +1,16 @@
+[
+  {
+    "user_id": 1,
+    "username": "admin",
+    "password_hash": "d037ff320719dafc3f4edf0d56b894723d93adc9b57511bf013f525078058dd7$853a611df139a369d407a1a1070bc4a439747898628789bc797363dfd785a4ba",
+    "role": "admin",
+    "created_at": "2025-12-07T20:50:53.766203"
+  },
+  {
+    "user_id": 2,
+    "username": "user",
+    "password_hash": "ed37a3c2cbe7e19c4aa8a924c09504601afee9a1be05d8ea4138a617619d2d31$fb716474f73225ccedc6c7f5f5b5a6c9fd42830629aa3c9627a76867a09a9a7c",
+    "role": "member",
+    "created_at": "2025-12-07T20:50:53.766630"
+  }
+]
